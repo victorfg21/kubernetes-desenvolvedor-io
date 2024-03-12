@@ -1,0 +1,175 @@
+---
+# Source: api-template/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-identity
+  labels:
+    helm.sh/chart: api-template-0.1.0
+    app.kubernetes.io/name: api-template
+    app.kubernetes.io/instance: api-identity
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 443
+      targetPort: https
+      protocol: TCP
+      name: https
+  selector:
+    app.kubernetes.io/name: api-template
+    app.kubernetes.io/instance: api-identity
+---
+# Source: api-template/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-identity
+  labels:
+    helm.sh/chart: api-template-0.1.0
+    app.kubernetes.io/name: api-template
+    app.kubernetes.io/instance: api-identity
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-template
+      app.kubernetes.io/instance: api-identity
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-template
+        app.kubernetes.io/instance: api-identity
+    spec:
+      serviceAccountName: default
+      securityContext:
+        {}
+      containers:
+        - name: api-template
+          securityContext:
+            {}
+          image: "desenvolvedorio/devstore-api-identity:1.0.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 443
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healtz-infra
+              port: 443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healtz-infra
+              port: 443
+              scheme: HTTPS
+            initialDelaySeconds: 13
+            periodSeconds: 10
+          env:
+          - name: ASPNETCORE_Kestrel__Certificates__Default__Password
+            valueFrom:
+              configMapKeyRef:
+                key: password
+                name: devstore-ssl
+              secretKeyRef:
+                key: password
+                name: devstore-ssl
+          - name: ASPNETCORE_Kestrel__Certificates__Default__Path
+            value: "/https/devstore.academy-localhost.pfx"
+          resources:
+            limits:
+              cpu: 500m
+              memory: 500Mi
+            requests:
+              cpu: 100m
+              memory: 200Mi
+          volumeMounts:
+          - mountPath: "/https"
+            name: certificado-devstore
+            readOnly: true
+      volumes:
+      - name: certificado-devstore
+        secret:
+          secretName: devstore-ssl
+---
+# Source: api-template/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-identity
+  labels:
+    helm.sh/chart: api-template-0.1.0
+    app.kubernetes.io/name: api-template
+    app.kubernetes.io/instance: api-identity
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-identity
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# Source: api-template/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-identity
+  labels:
+    helm.sh/chart: api-template-0.1.0
+    app.kubernetes.io/name: api-template
+    app.kubernetes.io/instance: api-identity
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  rules:
+    - host: "identity.devstore.info"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-identity
+                port:
+                  number: 443
+---
+# Source: api-template/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "api-identity-test-connection"
+  labels:
+    helm.sh/chart: api-template-0.1.0
+    app.kubernetes.io/name: api-template
+    app.kubernetes.io/instance: api-identity
+    app.kubernetes.io/version: "1.16.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['api-identity:443']
+  restartPolicy: Never

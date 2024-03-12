@@ -1,0 +1,7 @@
+image:
+  repository: desenvolvedorio/devstore-api-identity
+  tag: "1.0.0"
+
+secretRefs:
+- rabbit-connection
+- identity-connection
